@@ -20,6 +20,7 @@ export const AIChatDrawer: React.FC = () => {
     setIsAIChatOpen,
     chatMessages,
     sendUserMessage,
+    analyzeHealthDocument,
     setActiveTab,
     setIsRealLifeModalOpen
   } = useApp();
@@ -27,6 +28,8 @@ export const AIChatDrawer: React.FC = () => {
   const [inputVal, setInputVal] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isSimulatingUpload, setIsSimulatingUpload] = useState(false);
+  const [isAnalyzingDocument, setIsAnalyzingDocument] = useState(false);
+  const documentInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const quickQuestions = [
@@ -68,6 +71,16 @@ export const AIChatDrawer: React.FC = () => {
       setIsSimulatingUpload(false);
       sendUserMessage('I took a photo of my fridge: I have 4 eggs, cooked rice, spinach, and onions.');
     }, 1200);
+  };
+
+  const handleDocumentSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setIsAnalyzingDocument(true);
+    await analyzeHealthDocument(file);
+    setIsAnalyzingDocument(false);
   };
 
   return (
@@ -191,6 +204,13 @@ export const AIChatDrawer: React.FC = () => {
             </div>
           )}
 
+          {isAnalyzingDocument && (
+            <div className="flex items-center gap-2 p-3 rounded-2xl bg-sage-50 border border-sage-200 text-sage-800 text-xs animate-pulse">
+              <Paperclip className="w-4 h-4 text-sage-600" />
+              <span>Reading your health report and preparing a wellness plan...</span>
+            </div>
+          )}
+
           <div ref={messagesEndRef} />
         </div>
 
@@ -218,12 +238,19 @@ export const AIChatDrawer: React.FC = () => {
           >
             <button
               type="button"
-              onClick={handlePhotoSim}
+              onClick={() => documentInputRef.current?.click()}
               className="p-2 text-slate-500 hover:text-sage-700 rounded-xl hover:bg-cream-200 transition-colors"
-              title="Upload fridge photo or food pic"
+              title="Upload health report"
             >
-              <Camera className="w-4 h-4" />
+              <Paperclip className="w-4 h-4" />
             </button>
+            <input
+              ref={documentInputRef}
+              type="file"
+              accept=".pdf,.docx,.txt,.md"
+              onChange={handleDocumentSelected}
+              className="hidden"
+            />
 
             <button
               type="button"

@@ -1,5 +1,52 @@
 import { DailyPlan, PlanItem, Recipe, UserProfile } from '../types';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+
+export interface BackendChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface HealthAnalysis {
+  filename: string;
+  score: number;
+  score_label: string;
+  summary: string;
+  metrics: { name: string; value: string; status: string; note: string }[];
+  plan: string;
+  model?: string;
+  disclaimer: string;
+}
+
+async function readApiError(response: Response): Promise<Error> {
+  const body = await response.json().catch(() => null);
+  return new Error(body?.detail || `AI service request failed (${response.status}).`);
+}
+
+export async function askQwen(
+  message: string,
+  history: BackendChatMessage[] = []
+): Promise<{ answer: string; sources?: string[]; model?: string }> {
+  const response = await fetch(`${API_BASE_URL}/chat/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, history }),
+  });
+  if (!response.ok) throw await readApiError(response);
+  return response.json();
+}
+
+export async function analyzeHealthDocument(file: File): Promise<HealthAnalysis> {
+  const formData = new FormData();
+  formData.append('document', file);
+  const response = await fetch(`${API_BASE_URL}/chat/analyze-document`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!response.ok) throw await readApiError(response);
+  return response.json();
+}
+
 export interface AIResponse {
   message: string;
   quickReplies?: string[];

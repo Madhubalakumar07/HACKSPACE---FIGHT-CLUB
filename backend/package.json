@@ -1,0 +1,11 @@
+{
+  "name": "lifeflow-backend",
+  "private": true,
+  "version": "1.0.0",
+  "description": "FastAPI backend for the LifeFlow AI Lifestyle Planner",
+  "scripts": {
+    "dev": "py run.py",
+    "start": "py -m uvicorn app.main:app --host 0.0.0.0 --port 8000",
+    "check": "py -m compileall -q app run.py"
+  }
+}

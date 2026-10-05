@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserProfile, DailyPlan, Meal, Workout, Habit, FamilyMember, GroceryItem, ChatMessage, Recipe } from '../types';
 import { initialUserProfile, initialDailyPlan, mockMeals, mockHabits, mockFamilyMembers, mockGroceries, mockWorkouts, mockAlternativeMeals } from '../data/mockData';
-import { AIService } from '../data/aiService';
+import { AIService, analyzeHealthDocument as analyzeHealthDocumentApi, askQwen } from '../data/aiService';
 import { triggerCelebration, triggerSubtleSparkle } from '../utils/confetti';
 
 interface ToastMessage {
@@ -45,6 +45,7 @@ interface AppContextType {
   setIsAIChatOpen: (open: boolean) => void;
   chatMessages: ChatMessage[];
   sendUserMessage: (text: string) => void;
+  analyzeHealthDocument: (file: File) => Promise<void>;
   
   isRealLifeModalOpen: boolean;
   setIsRealLifeModalOpen: (open: boolean) => void;
@@ -307,7 +308,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
   };
 
-  const sendUserMessage = (text: string) => {
+  const sendUserMessage = async (text: string) => {
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       sender: 'user',
@@ -317,19 +318,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setChatMessages(prev => [...prev, userMsg]);
 
-    // Simulated AI response
-    setTimeout(() => {
-      const response = AIService.getCoachResponse(text, userProfile);
-      const aiMsg: ChatMessage = {
+    try {
+      const history = chatMessages.slice(-8).map(message => ({
+        role: message.sender,
+        content: message.text,
+      })) as { role: 'user' | 'assistant'; content: string }[];
+      const response = await askQwen(text, history);
+      setChatMessages(prev => [...prev, {
         id: `ai-${Date.now()}`,
         sender: 'assistant',
-        text: response.message,
+        text: response.answer,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        quickReplies: response.quickReplies,
-        cardData: response.suggestedAction
-      };
-      setChatMessages(prev => [...prev, aiMsg]);
-    }, 650);
+      }]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'The AI service is unavailable.';
+      setChatMessages(prev => [...prev, {
+        id: `ai-error-${Date.now()}`,
+        sender: 'assistant',
+        text: `I couldn't reach Qwen right now. ${message} Please check that the backend is running.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      }]);
+    }
+  };
+
+  const analyzeHealthDocument = async (file: File) => {
+    try {
+      const result = await analyzeHealthDocumentApi(file);
+      const metrics = result.metrics.length
+        ? result.metrics.map(metric => `${metric.name}: ${metric.value} — ${metric.status}`).join('\n')
+        : 'No standard numeric metrics were detected.';
+      setChatMessages(prev => [...prev, {
+        id: `health-${Date.now()}`,
+        sender: 'assistant',
+        text: `Health report: ${result.filename}\n\nWellness score: ${result.score}/100 — ${result.score_label}\n${result.summary}\n\n${metrics}\n\n${result.plan}\n\n${result.disclaimer}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      }]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'The document could not be analyzed.';
+      setChatMessages(prev => [...prev, {
+        id: `health-error-${Date.now()}`,
+        sender: 'assistant',
+        text: `I couldn't analyze that document. ${message}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      }]);
+    }
   };
 
   const startWorkout = (workout: Workout) => {
@@ -436,6 +468,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsAIChatOpen,
         chatMessages,
         sendUserMessage,
+        analyzeHealthDocument,
         isRealLifeModalOpen,
         setIsRealLifeModalOpen,
         activeWorkout,

@@ -108,6 +108,18 @@ Ensure you have the following installed:
    npm install
    ```
 
+3. **Install and run the backend:**
+   ```bash
+   cd ../backend
+   py -m pip install -r requirements.txt
+   copy .env.example .env
+   npm run dev
+   ```
+
+   Set `HUGGINGFACE_API_KEY` in `backend/.env` to enable Qwen responses. The frontend
+   sends chat requests to `http://localhost:8000` by default; set
+   `VITE_API_URL` when the backend is hosted elsewhere.
+
 ### Running the Project
 
 ```bash
@@ -116,6 +128,16 @@ npm run dev
 ```
 
 Open [http://localhost:5173](http://localhost:5173) in your browser.
+
+### AI health reports
+
+Open the LifeFlow Coach drawer and use the paperclip button to upload a text-based
+PDF, DOCX, TXT, or Markdown health report (up to 10 MB). The backend extracts common
+metrics, returns an educational wellness score, and asks Qwen for a practical 7-day
+improvement plan. Uploaded content is processed in memory and is not stored.
+
+This feature is not a diagnosis or a replacement for a clinician. Scanned/image-only
+documents are not interpreted unless they contain an extractable text layer.
 
 ---
 
