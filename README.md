@@ -98,30 +98,24 @@ Ensure you have the following installed:
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/your-username/hackathon-project.git
-   cd hackathon-project
+   git clone https://github.com/Madhubalakumar07/HACKSPACE---FIGHT-CLUB.git
+   cd HACKSPACE---FIGHT-CLUB
    ```
 
-2. **Install dependencies:**
+2. **Install frontend dependencies:**
    ```bash
-   # For Node.js projects:
+   cd frontend
    npm install
-
-   # For Python projects:
-   pip install -r requirements.txt
    ```
 
 ### Running the Project
 
 ```bash
-# Start development server
+# Inside frontend directory:
 npm run dev
-
-# Or for Python:
-python main.py
 ```
 
-Open [http://localhost:3000](http://localhost:3000) (or the corresponding port) in your browser.
+Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ---
 
