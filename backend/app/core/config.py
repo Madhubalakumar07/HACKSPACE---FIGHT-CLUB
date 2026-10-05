@@ -25,12 +25,18 @@ class Settings(BaseSettings):
         return self.CORS_ORIGINS
 
     # LLM Settings
-    LLM_MODEL_NAME: str = "Qwen/Qwen3-8B"
+    LLM_MODEL_NAME: str = "qwen/qwen3.8-27b"    # Groq free-tier model
+    GROQ_API_KEY: str = ""                    # https://console.groq.com/keys
+    # Legacy HuggingFace settings (kept for backward compat)
     HUGGINGFACE_API_KEY: str = ""
     USE_LOCAL_TRANSFORMERS: bool = False
     DEVICE: str = "auto"
     MAX_NEW_TOKENS: int = 512
     TEMPERATURE: float = 0.7
+
+    @property
+    def groq_configured(self) -> bool:
+        return bool(self.GROQ_API_KEY.strip())
 
     @property
     def qwen_configured(self) -> bool:

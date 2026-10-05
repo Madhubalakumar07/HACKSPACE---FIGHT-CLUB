@@ -1,14 +1,11 @@
 """
-LangChain RAG service powered by Qwen3-8B via Hugging Face Inference API.
+LangChain RAG service powered by Llama 3 via Groq (free-tier inference API).
 
 Architecture:
   1. Knowledge base: plain-text / markdown documents in data/knowledge_base/
   2. Vector store: in-memory TF-IDF similarity (no external vector DB needed for hackathon)
-  3. LLM: Qwen/Qwen3-8B via HuggingFace InferenceClient (API — no local GPU required)
-     OR local transformers pipeline (set USE_LOCAL_TRANSFORMERS=true in .env)
-
-The HF Inference API approach lets the model run on Hugging Face's servers using
-your HF_API_KEY, so you don't need 16 GB VRAM locally.
+  3. LLM: llama3-8b-8192 via Groq Inference API (free tier, no GPU required)
+     Get a free API key at https://console.groq.com/keys
 """
 from __future__ import annotations
 
@@ -150,60 +147,31 @@ class SimpleTFIDFRetriever:
 # 3. LLM WRAPPER  (HF Inference API or local transformers)
 # ──────────────────────────────────────────────────────────────────────────────
 
-class QwenLLMWrapper:
+class GroqLLMWrapper:
     """
-    Wraps Qwen3-8B via:
-      A) HuggingFace Inference API (default, no local GPU needed)
-      B) Local transformers pipeline (if USE_LOCAL_TRANSFORMERS=true)
+    Wraps Llama 3 (or any Groq-hosted model) via the Groq Inference API.
+    Free tier at https://console.groq.com — no credit card required.
+    Supported free models: llama3-8b-8192, llama3-70b-8192, mixtral-8x7b-32768
     """
 
     def __init__(self):
         self.model_name = settings.LLM_MODEL_NAME
-        self.use_local = settings.USE_LOCAL_TRANSFORMERS
-        self.hf_api_key = settings.HUGGINGFACE_API_KEY
-        self._local_pipe = None
-        self._hf_client = None
-        logger.info(f"QwenLLM init: model={self.model_name} local={self.use_local}")
+        self.groq_api_key = settings.GROQ_API_KEY
+        self._client = None
+        logger.info(f"GroqLLM init: model={self.model_name}")
 
-    def _get_hf_client(self):
-        """Lazy-init HuggingFace InferenceClient."""
-        if not self.hf_api_key.strip():
+    def _get_client(self):
+        """Lazy-init Groq client."""
+        if not self.groq_api_key.strip():
             raise RuntimeError(
-                "HUGGINGFACE_API_KEY is not configured. Add a Hugging Face access "
-                "token to backend/.env, then restart the backend."
+                "GROQ_API_KEY is not configured. Get a free key at "
+                "https://console.groq.com/keys and add it to backend/.env, "
+                "then restart the backend."
             )
-        if self._hf_client is None:
-            from huggingface_hub import InferenceClient
-            self._hf_client = InferenceClient(
-                model=self.model_name,
-                token=self.hf_api_key or None,
-            )
-        return self._hf_client
-
-    def _get_local_pipe(self):
-        """Lazy-load local transformers pipeline (heavy, only when requested)."""
-        if self._local_pipe is None:
-            from transformers import AutoTokenizer, AutoModelForCausalLM
-            import torch
-
-            logger.info(f"Loading local model {self.model_name} ...")
-            tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-            device_map = settings.DEVICE if settings.DEVICE != "auto" else "auto"
-            model = AutoModelForCausalLM.from_pretrained(
-                self.model_name,
-                device_map=device_map,
-                torch_dtype=torch.bfloat16,
-            )
-            self._local_pipe = (tokenizer, model)
-            logger.info("Local model loaded.")
-        return self._local_pipe
-
-    @staticmethod
-    def _clean_generation(text: str) -> str:
-        """Remove Qwen's optional hidden reasoning section from the user-facing answer."""
-        if "</think>" in text:
-            text = text.split("</think>", 1)[1]
-        return text.strip()
+        if self._client is None:
+            from groq import Groq
+            self._client = Groq(api_key=self.groq_api_key)
+        return self._client
 
     def generate(self, messages: list[dict], max_new_tokens: int | None = None) -> str:
         """
@@ -211,39 +179,23 @@ class QwenLLMWrapper:
         messages: [{"role": "system"|"user"|"assistant", "content": "..."}]
         """
         tokens = max_new_tokens or settings.MAX_NEW_TOKENS
-
-        if self.use_local:
-            tokenizer, model = self._get_local_pipe()
-            inputs = tokenizer.apply_chat_template(
-                messages,
-                add_generation_prompt=True,
-                tokenize=True,
-                return_dict=True,
-                return_tensors="pt",
-            ).to(model.device)
-            outputs = model.generate(
-                **inputs,
-                max_new_tokens=tokens,
+        client = self._get_client()
+        try:
+            response = client.chat.completions.create(
+                model=self.model_name,
+                messages=messages,
+                max_tokens=tokens,
                 temperature=settings.TEMPERATURE,
             )
-            generated_tokens = outputs[0][inputs["input_ids"].shape[-1]:]
-            return self._clean_generation(tokenizer.decode(generated_tokens, skip_special_tokens=True))
-        else:
-            client = self._get_hf_client()
-            try:
-                response = client.chat_completion(
-                    messages=messages,
-                    max_tokens=tokens,
-                    temperature=settings.TEMPERATURE,
-                )
-            except Exception as exc:
-                raise RuntimeError(
-                    f"Hugging Face could not generate a response for {self.model_name}: {exc}"
-                ) from exc
-            content = response.choices[0].message.content
-            if not content:
-                raise RuntimeError("Hugging Face returned an empty Qwen response.")
-            return self._clean_generation(content)
+        except Exception as exc:
+            raise RuntimeError(
+                f"Groq could not generate a response for {self.model_name}: {exc}"
+            ) from exc
+
+        content = response.choices[0].message.content
+        if not content:
+            raise RuntimeError("Groq returned an empty response.")
+        return content.strip()
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -266,7 +218,7 @@ class RAGService:
     _instance: Optional["RAGService"] = None
 
     def __init__(self):
-        self.llm = QwenLLMWrapper()
+        self.llm = GroqLLMWrapper()
         # Build document chunks
         splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=80)
         chunks: list[str] = []
