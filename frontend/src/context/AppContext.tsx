@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserProfile, DailyPlan, Meal, Workout, Habit, FamilyMember, GroceryItem, ChatMessage, Recipe } from '../types';
 import { initialUserProfile, initialDailyPlan, mockMeals, mockHabits, mockFamilyMembers, mockGroceries, mockWorkouts, mockAlternativeMeals } from '../data/mockData';
-import { AIService, analyzeHealthDocument as analyzeHealthDocumentApi, askQwen } from '../data/aiService';
+import { AIService, analyzeHealthDocument as analyzeHealthDocumentApi, askQwen, HealthAnalysis } from '../data/aiService';
 import { triggerCelebration, triggerSubtleSparkle } from '../utils/confetti';
 
 interface ToastMessage {
@@ -46,6 +46,7 @@ interface AppContextType {
   chatMessages: ChatMessage[];
   sendUserMessage: (text: string) => void;
   analyzeHealthDocument: (file: File) => Promise<void>;
+  healthAnalysis: HealthAnalysis | null;
   
   isRealLifeModalOpen: boolean;
   setIsRealLifeModalOpen: (open: boolean) => void;
@@ -98,6 +99,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [habits, setHabits] = useState<Habit[]>(mockHabits);
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>(mockFamilyMembers);
   const [isAIChatOpen, setIsAIChatOpen] = useState<boolean>(false);
+  const [healthAnalysis, setHealthAnalysis] = useState<HealthAnalysis | null>(() => {
+    const saved = localStorage.getItem('lifeflow_health_analysis');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [isRealLifeModalOpen, setIsRealLifeModalOpen] = useState<boolean>(false);
   const [activeWorkout, setActiveWorkout] = useState<Workout | null>(null);
   const [energySliderValue, setEnergySliderValue] = useState<number>(65);
@@ -125,6 +130,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('lifeflow_daily_plan', JSON.stringify(dailyPlan));
   }, [dailyPlan]);
+
+  useEffect(() => {
+    if (healthAnalysis) {
+      localStorage.setItem('lifeflow_health_analysis', JSON.stringify(healthAnalysis));
+    }
+  }, [healthAnalysis]);
 
   const showToast = (title: string, message: string, type: 'success' | 'info' | 'reminder' = 'success') => {
     const id = Date.now().toString();
@@ -344,6 +355,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const analyzeHealthDocument = async (file: File) => {
     try {
       const result = await analyzeHealthDocumentApi(file);
+      setHealthAnalysis(result);
       const metrics = result.metrics.length
         ? result.metrics.map(metric => `${metric.name}: ${metric.value} — ${metric.status}`).join('\n')
         : 'No standard numeric metrics were detected.';
@@ -469,6 +481,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         chatMessages,
         sendUserMessage,
         analyzeHealthDocument,
+        healthAnalysis,
         isRealLifeModalOpen,
         setIsRealLifeModalOpen,
         activeWorkout,

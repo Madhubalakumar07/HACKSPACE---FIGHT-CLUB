@@ -85,7 +85,16 @@ async def analyze_document(
             {"name": item.name, "value": item.value, "status": item.status, "note": item.note}
             for item in extracted
         ]
-        plan = rag.create_health_plan(text, score, metric_dicts)
+        try:
+            plan = rag.create_health_plan(text, score, metric_dicts)
+        except Exception:
+            logger.exception("Qwen plan generation failed; returning extracted health score")
+            plan = (
+                "Start with one sustainable change this week: take a 10-minute walk daily, "
+                "build meals around vegetables and protein, keep a consistent sleep schedule, "
+                "and arrange a clinician review for any result marked 'worth discussing'. "
+                "This plan is general wellness guidance and is not a diagnosis."
+            )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:

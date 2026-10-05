@@ -7,6 +7,7 @@ import { DisclaimerBanner } from './components/layout/DisclaimerBanner';
 import { ToastContainer } from './components/layout/Toast';
 
 import { MetricsBar } from './components/dashboard/MetricsBar';
+import { HealthSummaryCard } from './components/dashboard/HealthSummaryCard';
 import { TodayPlanCard } from './components/dashboard/TodayPlanCard';
 import { QuickActionCards } from './components/dashboard/QuickActionCards';
 import { DailyQuote } from './components/dashboard/DailyQuote';
@@ -86,6 +87,7 @@ export const App: React.FC = () => {
             {activeTab === 'dashboard' && (
               <div className="space-y-6 animate-fadeIn">
                 <MetricsBar />
+                <HealthSummaryCard />
                 <TodayPlanCard />
                 <QuickActionCards />
                 <DailyQuote />
